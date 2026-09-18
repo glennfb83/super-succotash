@@ -1,1 +1,64 @@
-
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lanterns in the Undertide</title>
+<style>
+:root{--ink:#08111d;--sea:#10243a;--foam:#d7ffe8;--ember:#ffb45b;--pink:#ff6f91;--glass:rgba(8,17,29,.82)}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--ink);color:var(--foam);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}body{display:grid;place-items:center}canvas{display:block;width:100vw;height:100vh;image-rendering:auto;cursor:crosshair}#ui{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:20px;filter:drop-shadow(0 2px 8px #0009)}.top{display:flex;justify-content:space-between;align-items:start;gap:14px}.brand{letter-spacing:.14em;text-transform:uppercase;font-size:clamp(10px,1.3vw,14px);color:#a6bdd0}.brand b{display:block;color:var(--foam);font-size:clamp(16px,2.5vw,27px);letter-spacing:.08em}.stat{background:var(--glass);border:1px solid #83a9be45;padding:10px 12px;min-width:160px;color:#a6bdd0;font-size:11px;line-height:1.7}.stat strong{color:var(--ember);font-size:16px}.bottom{display:flex;justify-content:space-between;align-items:end;gap:15px}.hint{font-size:11px;line-height:1.7;color:#9cb6c4;max-width:430px}.hint kbd{border:1px solid #7894a5;border-radius:3px;padding:2px 5px;color:#fff}.meter{width:min(240px,38vw);height:8px;border:1px solid #9fbac5;padding:1px}.meter i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--pink),var(--ember));transition:width .2s}.screen{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at center,#132b3ddd,#08111df5 68%);z-index:3}.card{max-width:680px;margin:24px;text-align:center;border:1px solid #9ae9ca80;background:#08111de8;padding:clamp(24px,5vw,58px);box-shadow:0 0 70px #70e0c31e}.eyebrow{font-size:11px;letter-spacing:.3em;color:var(--ember);text-transform:uppercase}.card h1{font-family:Georgia,serif;font-weight:400;line-height:.95;font-size:clamp(42px,8vw,90px);margin:16px 0;color:#ecfff4}.card p{color:#a5bcc5;line-height:1.7;font-size:13px}.card button{pointer-events:auto;margin-top:22px;background:var(--ember);border:0;color:#17120e;font:700 13px ui-monospace;padding:14px 25px;cursor:pointer;text-transform:uppercase;letter-spacing:.15em}.card button:hover{background:#fff0b2;transform:translateY(-2px)}.hide{display:none}.tip{color:#7192a5!important;font-size:11px!important}.flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:2}.flash.on{animation:flash .35s}@keyframes flash{20%{opacity:.16}to{opacity:0}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui" class="hide"><div class="top"><div class="brand"><b>LANTERNS IN THE UNDERTIDE</b>FIELD NOTE // 07</div><div class="stat">TIDE <strong id="tide">00:00</strong><br>RELICS <strong id="score">0</strong> / 12<br>INK <strong id="ink">100</strong>%</div></div><div class="bottom"><div class="hint"><kbd>WASD</kbd> drift &nbsp; <kbd>SPACE</kbd> lantern pulse &nbsp; <kbd>MOUSE</kbd> mark the dark<br><span id="message">The island is asleep. Please walk softly.</span></div><div><div class="meter"><i id="meter"></i></div></div></div></div>
+<div id="intro" class="screen"><div class="card"><div class="eyebrow">a small game about listening</div><h1>Lanterns<br>in the Undertide</h1><p>At low tide, the island remembers. Carry a little light through its sleeping streets, collect twelve lost echoes, and do not let the dark learn your name.</p><p class="tip">Your lantern does not kill the things below. It only convinces them you are elsewhere.</p><button id="start">Begin the walk</button></div></div>
+<div id="end" class="screen hide"><div class="card"><div class="eyebrow" id="endEyebrow">the tide has turned</div><h1 id="endTitle">You made it home.</h1><p id="endText"></p><button id="again">Walk again</button></div></div><div class="flash" id="flash"></div>
+<script>
+'use strict';
+const C=document.getElementById('game'),X=C.getContext('2d'),ui=document.getElementById('ui'),intro=document.getElementById('intro'),ending=document.getElementById('end'),start=document.getElementById('start'),again=document.getElementById('again'),scoreEl=document.getElementById('score'),tideEl=document.getElementById('tide'),inkEl=document.getElementById('ink'),meter=document.getElementById('meter'),msg=document.getElementById('message'),flash=document.getElementById('flash');
+let W,H,dpr,run=false,last=0,time=0,score=0,ink=100,keys={},mouse={x:0,y:0,down:false},p,echoes=[],shadows=[],flakes=[],ripples=[],notes=[],cam={x:0,y:0},seed=0,audio;
+const world={w:3000,h:2000};
+function resize(){dpr=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;C.width=W*dpr;C.height=H*dpr;X.setTransform(dpr,0,0,dpr,0,0)}addEventListener('resize',resize);resize();
+function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}function clamp(v,a,b){return Math.max(a,Math.min(b,v))}function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function makeWorld(){seed=7919;echoes=[];shadows=[];flakes=[];ripples=[];notes=[];score=0;ink=100;time=0;p={x:world.w/2,y:world.h/2+180,r:14,vx:0,vy:0,angle:0,inv:0};
+ for(let i=0;i<12;i++){let a=i*Math.PI*2/12+.25,rad=390+rand()*450;echoes.push({x:world.w/2+Math.cos(a)*rad,y:world.h/2+Math.sin(a)*rad*.7,r:11,got:false,phase:rand()*7})}
+ for(let i=0;i<9;i++){let a=rand()*6.28,r=350+rand()*580;shadows.push({x:world.w/2+Math.cos(a)*r,y:world.h/2+Math.sin(a)*r*.65,tx:0,ty:0,phase:rand()*9,stun:0,rad:18+rand()*9})}
+ for(let i=0;i<150;i++)flakes.push({x:rand()*world.w,y:rand()*world.h,s:.5+rand()*2,a:rand()*6.28})
+}
+function sx(x){return x-cam.x+W/2}function sy(y){return y-cam.y+H/2}
+function noise(x,y){return Math.sin(x*.006+Math.sin(y*.003))*18+Math.cos(y*.009+x*.002)*13}
+function initAudio(){if(audio)return;audio=new (AudioContext||webkitAudioContext)();}
+function chirp(freq,dur,type='sine',vol=.035){if(!audio)return;let o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+dur);o.connect(g).connect(audio.destination);o.start();o.stop(audio.currentTime+dur)}
+function reset(){makeWorld();intro.classList.add('hide');ending.classList.add('hide');ui.classList.remove('hide');run=true;last=performance.now();initAudio();audio?.resume();chirp(220,.4,'triangle',.06);requestAnimationFrame(loop)}
+start.onclick=reset;again.onclick=reset;addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase()))e.preventDefault();if(e.key===' '&&!e.repeat&&run)pulse()});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+C.addEventListener('pointermove',e=>{mouse.x=e.clientX;mouse.y=e.clientY});C.addEventListener('pointerdown',()=>{mouse.down=true;if(run)mark()});addEventListener('pointerup',()=>mouse.down=false);
+function pulse(){if(ink<20){msg.textContent='The lantern is only a shell now.';chirp(70,.18,'sawtooth');return}ink-=20; p.inv=.45;ripples.push({x:p.x,y:p.y,r:4,life:1});chirp(410,.12,'sine',.05);shadows.forEach(s=>{if(dist(p,s)<300)s.stun=2.6})}
+function mark(){let wx=mouse.x-W/2+cam.x,wy=mouse.y-H/2+cam.y;notes.push({x:wx,y:wy,life:7});if(notes.length>14)notes.shift();chirp(120+Math.random()*80,.04,'square',.015)}
+function update(dt){time+=dt;ink=clamp(ink+dt*2.2,0,100);let ax=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),ay=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);let n=Math.hypot(ax,ay)||1;ax/=n;ay/=n;p.vx+=(ax*260-p.vx)*dt*5;p.vy+=(ay*260-p.vy)*dt*5;if(!ax&&!ay){p.vx*=Math.pow(.08,dt);p.vy*=Math.pow(.08,dt)}p.x=clamp(p.x+p.vx*dt,80,world.w-80);p.y=clamp(p.y+p.vy*dt,80,world.h-80);p.angle=Math.atan2(p.vy,p.vx)||p.angle;cam.x+=(p.x-cam.x)*dt*3;cam.y+=(p.y-cam.y)*dt*3;p.inv=Math.max(0,p.inv-dt);
+ echoes.forEach(e=>{if(!e.got&&dist(p,e)<35){e.got=true;score++;ink=clamp(ink+14,0,100);ripples.push({x:e.x,y:e.y,r:5,life:1});chirp(300+score*38,.25,'triangle',.055);msg.textContent=['A bell under the sand.','Someone left this warm.','The sea remembers your footsteps.','A window opens, somewhere.'][score%4]}});
+ shadows.forEach(s=>{if(s.stun>0){s.stun-=dt;return}let dx=p.x-s.x,dy=p.y-s.y,d=Math.hypot(dx,dy);if(d<550){s.x+=dx/d*42*dt;s.y+=dy/d*42*dt}if(d<36&&p.inv<=0){p.inv=1.3;ink-=27;flash.classList.remove('on');void flash.offsetWidth;flash.classList.add('on');chirp(55,.4,'sawtooth',.08);msg.textContent='Something heard you. Keep moving.'}});ripples.forEach(r=>{r.r+=260*dt;r.life-=dt*1.7});ripples=ripples.filter(r=>r.life>0);notes.forEach(n=>n.life-=dt);notes=notes.filter(n=>n.life>0);scoreEl.textContent=score;tideEl.textContent=new Date(time*1000).toISOString().substring(14,19);inkEl.textContent=Math.round(ink);meter.style.width=ink+'%';if(score===12){finish(true)}else if(time>180){finish(false)}}
+function finish(win){run=false;ending.classList.remove('hide');document.getElementById('endEyebrow').textContent=win?'the island exhales':'the tide has turned';document.getElementById('endTitle').textContent=win?'You made it home.':'The water found you.';document.getElementById('endText').textContent=win?`Twelve echoes returned to the shore in ${Math.floor(time/60)}m ${Math.floor(time%60).toString().padStart(2,'0')}s. The island will keep your name a little longer.`:'You carried '+score+' echo'+(score===1?'':'s')+' before the last path disappeared. The island is patient.';chirp(win?660:90,.7,'sine',.07)}
+function draw(){X.clearRect(0,0,W,H);let g=X.createLinearGradient(0,0,0,H);g.addColorStop(0,'#172f45');g.addColorStop(1,'#07111d');X.fillStyle=g;X.fillRect(0,0,W,H);
+ // undertide grid / water
+ X.save();X.translate(W/2-cam.x,H/2-cam.y);X.strokeStyle='#8bc2bd0b';X.lineWidth=1;for(let x=-200;x<world.w+200;x+=90){X.beginPath();X.moveTo(x,0);X.lineTo(x+Math.sin(x*.02)*40,world.h);X.stroke()}for(let y=0;y<world.h;y+=90){X.beginPath();X.moveTo(0,y);X.lineTo(world.w,y+Math.sin(y*.02)*40);X.stroke()}
+ // island
+ X.beginPath();let cx=world.w/2,cy=world.h/2;for(let i=0;i<80;i++){let a=i/80*Math.PI*2,r=720+noise(i*60,0);let x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r*.62;i?X.lineTo(x,y):X.moveTo(x,y)}X.closePath();X.fillStyle='#1a4b4d';X.fill();X.strokeStyle='#8ac9ae44';X.lineWidth=3;X.stroke();
+ // tide rings
+ X.strokeStyle='#92dfc218';X.lineWidth=2;for(let r=790;r<1200;r+=75){X.beginPath();X.ellipse(cx,cy,r,r*.6,0,0,7);X.stroke()}
+ // paths
+ X.strokeStyle='#c1dca52b';X.lineWidth=18;X.lineCap='round';X.beginPath();X.moveTo(cx,cy+180);X.bezierCurveTo(cx-300,cy+100,cx-100,cy-20,cx-420,cy-190);X.moveTo(cx,cy+180);X.bezierCurveTo(cx+180,cy+70,cx+100,cy-100,cx+430,cy-230);X.moveTo(cx,cy+180);X.bezierCurveTo(cx+20,cy+10,cx-170,cy-100,cx-20,cy-400);X.stroke();
+ // reeds and debris
+ for(let i=0;i<100;i++){let x=100+((i*271)%2800),y=100+((i*157)%1800);if(Math.hypot(x-cx,(y-cy)/.65)>720)continue;X.strokeStyle='#0d303b';X.lineWidth=3;X.beginPath();X.moveTo(x,y);X.quadraticCurveTo(x-8,y-24,x+Math.sin(i)*15,y-42);X.stroke()}
+ notes.forEach(n=>{X.globalAlpha=n.life/7;X.strokeStyle='#ffdb8a';X.lineWidth=2;X.beginPath();X.arc(n.x,n.y,9,0,7);X.stroke();X.globalAlpha=1});
+ echoes.forEach(e=>{if(e.got)return;let bob=Math.sin(time*3+e.phase)*4;X.save();X.translate(e.x,e.y+bob);X.shadowBlur=24;X.shadowColor='#ffd782';X.fillStyle='#ffe5a6';X.beginPath();X.moveTo(0,-12);X.lineTo(9,0);X.lineTo(0,12);X.lineTo(-9,0);X.fill();X.restore()});
+ shadows.forEach(s=>{X.save();X.translate(s.x,s.y);let alpha=s.stun>0?.18:.65;X.globalAlpha=alpha;X.shadowBlur=28;X.shadowColor='#ff638c';X.fillStyle='#100d22';X.beginPath();X.ellipse(0,0,s.rad,s.rad*1.35,0,0,7);X.fill();X.shadowBlur=0;X.fillStyle='#ff8ba4';X.fillRect(-7,-5,3,3);X.fillRect(4,-5,3,3);X.strokeStyle='#ff79994c';X.beginPath();X.arc(0,0,s.rad+7+Math.sin(time*4+s.phase)*4,0,7);X.stroke();X.restore()});
+ ripples.forEach(r=>{X.globalAlpha=r.life*.45;X.strokeStyle='#d9ffdd';X.lineWidth=2;X.beginPath();X.arc(r.x,r.y,r.r,0,7);X.stroke();X.globalAlpha=1});
+ // player shadow and lantern
+ X.save();X.translate(p.x,p.y);X.globalAlpha=.3;X.fillStyle='#000';X.beginPath();X.ellipse(0,13,22,8,0,0,7);X.fill();X.globalAlpha=1;X.rotate(p.angle);X.fillStyle='#d4f7dc';X.beginPath();X.moveTo(17,0);X.lineTo(-9,-10);X.lineTo(-5,0);X.lineTo(-9,10);X.closePath();X.fill();X.fillStyle='#ffb45b';X.shadowBlur=32;X.shadowColor='#ffc56c';X.beginPath();X.arc(7,0,5,0,7);X.fill();X.restore();X.restore();
+ // vignette + light hole
+ let v=X.createRadialGradient(W/2,H/2,90,W/2,H/2,Math.max(W,H)*.7);v.addColorStop(0,'transparent');v.addColorStop(.55,'#07111d12');v.addColorStop(1,'#020711c9');X.fillStyle=v;X.fillRect(0,0,W,H);
+}
+function loop(now){if(!run)return;let dt=Math.min(.04,(now-last)/1000);last=now;update(dt);draw();requestAnimationFrame(loop)}
+makeWorld();draw();
+</script></body></html>
